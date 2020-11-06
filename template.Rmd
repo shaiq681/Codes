@@ -1,0 +1,23 @@
+---
+title: "Machine Learning(732A99) Lab-X"
+author: "Sofie Jorgensen(sofjo281),Yunan Dong(yundo963) and Shahrukh Iqbal(shaiq681)"
+date: "XX-XXX-2020"
+output:
+  pdf_document: 
+    latex_engine : xelatex
+  # html_document:
+  #   df_print: paged
+
+---
+## Statement Of Contribution
+
+We colectively acknowledge that the current lab report is a collaborative work of Sofie Jorgensen(sofjo281), Yunan Dong(yundo963) and Shahrukh Buland Iqbal(shaiq681). In this report Sofie was responsible for Assignment-X1, Yunan for X-2 and Shahrukh for X-3.
+
+
+# Assignment-1
+
+
+# Assignment-2
+
+
+# Assignment-3
