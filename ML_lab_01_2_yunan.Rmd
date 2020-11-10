@@ -1,0 +1,250 @@
+---
+title: "Lab01 ML"
+author: "Yunan Dong"
+date: "11/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%", warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(data.table) # for high efficiency if possible
+
+#-----------------------
+parkinsons <- read.csv("parkinsons.csv")
+str(parkinsons)
+
+setwd("D:/DataScience/LiuCourses/ML/lab1")
+
+```
+
+
+
+# Assignment 2. Ridge regression and model selection
+
+## 2.1 
+
+
+
+
+
+## 2.2 
+
+```{r 2.2.1}
+# scaling data
+
+parkinsons %>% as_tibble() %>%
+  select(-subject.,-age,-sex,-test_time,-total_UPDRS) %>%
+  mutate_if(is_numeric, scale) %>%
+  as.data.frame() ->df
+
+```
+
+
+
+```{r 2.2.2}
+# parition on trainset and testset
+set.seed(1234)
+datasetPartition<- function(dataset, trainingPart, testingPart,validationPart){
+  tr = trainingPart/(trainingPart+testingPart+validationPart) # ration of training set
+  ttr = testingPart/(trainingPart+testingPart+validationPart) # ration of testing set
+  vr = 1-(tr+ttr)    #validation set
+  obs = 1:dim(dataset)[1]
+  sub_tr<-sample(obs,round(dim(dataset)[1]*tr))  # index of training set
+  sub_trr<-sample(setdiff(obs, sub_tr) ,round(dim(dataset)[1]*ttr))  # index of testing set
+  list(dataset[sub_tr,],dataset[sub_trr,],dataset[c(-sub_tr,-sub_trr),])
+}
+
+
+# partition for concrete dataset
+df_lst<- datasetPartition(df,60,40,0)
+
+training_set<-df_lst[[1]]
+training_set_y<- training_set[,1:1]%>%as.matrix()
+training_set_x<- training_set[,2:dim(training_set)[2]]%>%as.matrix()
+testing_set<-df_lst[[2]]
+validation_set<-df_lst[[3]]
+
+```
+
+
+## 2.3
+
+### 2.3.a
+```{r 2.3.a.0}
+# dimensions and observations
+k=16
+n=dim(training_set_x)[1]
+# paramters
+w_v<-rnorm(k) %>% as.matrix()
+
+```
+
+
+```{r 2.3.a.1}
+
+#loglikelihood,base=exp(1) log𝑃(𝐷|𝑤,𝜎)
+loglikelihood_fun<-function(y,X,w,sigma,n){
+  #y=training_set_y
+  #X=training_set_x
+  #w=w_v
+  y_Xw<-y-X%*%w
+  y_Xw_s<-t(y_Xw)%*%y_Xw
+  
+ (-n/2)*(log(2)+log(pi)+2*log(sigma))-(1/(2*sigma^2))*y_Xw_s
+  
+}
+
+# 
+
+-loglikelihood_fun(training_set_y,training_set_x,w_v,150,dim(training_set_x)[1])
+
+x=seq(-150, 150, by = 0.05)
+plot(x,-loglikelihood_fun(training_set_y,training_set_x,w_v,x,dim(training_set_x)[1]))
+```
+
+
+### 2.3.b
+
+```{r 2.3.b}
+#ridge function
+
+
+Ridge<-function(y,X,w,sigma,lambda,n){
+  #y=training_set_y
+  #X=training_set_x
+  #w=w_v
+  y_Xw<-y-X%*%w
+  y_Xw_s<-t(y_Xw)%*%y_Xw
+  l2_penalty = lambda*t(w)%*%w
+  
+  LL<-(-n/2)*(log(2)+log(pi)+2*log(sigma))-(1/(2*sigma^2))*y_Xw_s
+  
+  -LL+l2_penalty
+  
+}
+
+Ridge(training_set_y,training_set_x,w_v,150,2,dim(training_set_x)[1])
+
+x=seq(-150, 150, by = 0.05)
+plot(x,Ridge(training_set_y,training_set_x,w_v,150,x,dim(training_set_x)[1]))
+
+```
+
+### 2.3.c
+
+
+
+```{r 2.3.c}
+#RidgeOpt
+
+w_v<-rnorm(k) %>% as.matrix()
+prams<-c(w_v,1)  # simple initialization for w, sigma
+
+
+
+Ridge_dg<-function(prams,lambda){
+  k=16
+  Ridge(y=training_set_y,X=training_set_x
+        ,w=prams[1:k],sigma=prams[k+1]
+        ,lambda=lambda,n=dim(training_set_x)[1])
+}
+
+
+
+RidgeOpt<-function(lambda){
+ optim(par=prams,fn=Ridge_dg,lambda=lambda,method = "BFGS") 
+}
+
+RidgeOpt(1)
+RidgeOpt(100)
+RidgeOpt(1000)
+
+```
+
+
+
+
+### 2.3.d
+```{r 2.3.d}
+## computing DF
+
+DF<-function(y,X,w,sigma)
+{
+  #y=training_set_y
+ # X=training_set_x
+ # w=w_v
+ # sigma=456
+  
+  y_hat<-X%*%w
+  cov(y_hat,y)/sigma^2
+  
+}
+
+DF(training_set_y,training_set_x,w_v,456)
+
+```
+
+
+### 2.4
+
+```{r 2.4.}
+## getting pramaters
+t<-lapply(c(1,100,1000),RidgeOpt)
+
+t[[1]]$par   #1
+t[[2]]$par   #100
+t[[3]]$par   #1000
+
+#predicting
+y_hat_1<-training_set_x%*%(t[[1]]$par)[1:k]
+y_hat_2<-training_set_x%*%(t[[2]]$par)[1:k]
+y_hat_3<-training_set_x%*%(t[[3]]$par)[1:k]
+
+mse<-function(y,y_hat,n){
+  (t(y-y_hat)%*%(y-y_hat)) /n
+}
+
+mse(training_set_y,y_hat_1,n=n)  # check, best 
+
+mse(training_set_y,y_hat_2,n=n)
+
+mse(training_set_y,y_hat_3,n=n)
+
+# mse is stale and not easily disturbed by random or unknown errors
+
+```
+
+
+### 2.5
+
+Let k be the number of estimated parameters in the model. Let L be the maximum value of the likelihood function for the model. 
+$$AIC = 2k-2ln(\hat{L})$$
+Here the lnL should be Ridge function
+
+```{r 25}
+
+## AIC
+#library(MASS)
+
+#loglikelihood_fun
+
+AIC_1<-2*k-2*Ridge(y=training_set_y,X=training_set_x,w=(t[[1]]$par)[1:k],sigma=(t[[1]]$par)[k+1],lambda=1,dim(training_set_x)[1])
+
+AIC_2<-2*k-2*Ridge(y=training_set_y,X=training_set_x,w=(t[[2]]$par)[1:k],sigma=(t[[2]]$par)[k+1],lambda=100,dim(training_set_x)[1])
+#------------
+AIC_3<-2*k-2*Ridge(y=training_set_y,X=training_set_x,w=(t[[3]]$par)[1:k],sigma=(t[[3]]$par)[k+1],lambda=1000,dim(training_set_x)[1])  #check,best
+
+
+c(AIC_1,AIC_2,AIC_3)
+
+# AIC_3 is best 
+#theoretical advantage:
+## making best use of the data information 
+## decreasing the probability of overfiting
+
+
+```
+
